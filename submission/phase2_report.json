@@ -1,0 +1,30 @@
+{
+  "phase": "2",
+  "environment": {
+    "colab": true
+  },
+  "attention": {
+    "naive_ms": 474.401,
+    "vectorized_ms": 1.012,
+    "speedup": 468.78
+  },
+  "threads": {
+    "1": 4453.188,
+    "2": 2252.165,
+    "4": 2410.895,
+    "8": 2316.859
+  },
+  "devices": {
+    "cpu_ms": 464656.3,
+    "gpu_ms": 12964.3
+  },
+  "training": {
+    "steps": 2000,
+    "final_loss": 1.4541,
+    "param_count": 4935680
+  },
+  "sample": "\nEe a sad fir to feell; besect bis me on the pare;\n'Teas with his life is marking o'er pap!\nTo delixed ock suffidy the rectition;\nAnd peacel wese itmed'd not fird, and as to\nlike of O, Withoman, know a",
+  "model": {
+    "gcs_url": "https://storage.googleapis.com/eurecomgpt-lab-511412-eurecomgpt/model.safetensors"
+  }
+}
