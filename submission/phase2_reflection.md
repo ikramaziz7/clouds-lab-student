@@ -1,83 +1,72 @@
 # Phase 2 — Reflection: where does parallelism stop helping?
 
-Copy this file to `submission/phase2_reflection.md`, fill in every answer slot, and commit it:
-
-```bash
-cp phase-2-tiny-gpt/reflection_template.md submission/phase2_reflection.md
-```
-
-**How to fill it in.** Each answer sits between a pair of `<!--answer:...-->` markers. Replace
-the `TODO` line with your answer — **leave the markers themselves untouched**, they are how the
-grader finds your answers. Anything you write outside the markers is ignored, so add extra
-prose, tables or your threading plot freely.
-
-Numbers in section 1 must **match `submission/phase2_report.json`** — copy them across, do not
-retype from memory; they are checked against it.
-
----
-
 ## 1. Your measurements
 
 | | Value |
 |---|---|
-| Naive attention, ms (`attention.naive_ms`) | <!--answer:attn_naive_ms-->TODO<!--/answer--> |
-| Vectorized attention, ms (`attention.vectorized_ms`) | <!--answer:attn_vectorized_ms-->TODO<!--/answer--> |
-| CPU training, ms for 100 steps (`devices.cpu_ms`) | <!--answer:cpu_ms-->TODO<!--/answer--> |
-| GPU training, ms for 100 steps (`devices.gpu_ms`) | <!--answer:gpu_ms-->TODO<!--/answer--> |
-| Final training loss (`training.final_loss`) | <!--answer:final_loss-->TODO<!--/answer--> |
+| Naive attention, ms (`attention.naive_ms`) | <!--answer:attn_naive_ms-->474.401<!--/answer--> |
+| Vectorized attention, ms (`attention.vectorized_ms`) | <!--answer:attn_vectorized_ms-->1.012<!--/answer--> |
+| CPU training, ms for 100 steps (`devices.cpu_ms`) | <!--answer:cpu_ms-->464656.3<!--/answer--> |
+| GPU training, ms for 100 steps (`devices.gpu_ms`) | <!--answer:gpu_ms-->12964.3<!--/answer--> |
+| Final training loss (`training.final_loss`) | <!--answer:final_loss-->1.4541<!--/answer--> |
 
-**The thread sweep.** Give your four timings from `threads` — 1, 2, 4 and 8 threads — and say
-which count was fastest. (verbatim: the numbers, in order)
+**The thread sweep.**
 
 <!--answer:thread_sweep-->
-TODO
+1 thread: 4453.188 ms
+2 threads: 2252.165 ms
+4 threads: 2410.895 ms
+8 threads: 2316.859 ms
+Fastest: 2 threads
 <!--/answer-->
 
 ---
 
 ## 2. Intra-node parallelism, three ways
 
-**Why vectorizing wins.** Both attention implementations do the same arithmetic and produce the
-same result (the unit test checks that). Explain where the naive version's time actually goes,
-and what the vectorized one does differently — in terms of the machine, not the Python.
-(~70 words)
+**Why vectorizing wins.**
 
 <!--answer:vectorization_why-->
-TODO
+Python loops are slow because the interpreter handles each operation one by one. NumPy
+sends the whole matrix to OpenBLAS, which uses SIMD instructions to process many numbers
+at once. Same result, but 468x faster because the CPU is actually used efficiently.
 <!--/answer-->
 
-**Where the thread curve flattens, and why.** Using your sweep: more threads stopped helping —
-or started hurting — at some point. Say where, and give the reason. Your Colab runtime's vCPU
-count is part of the answer; so is what the threads have to coordinate on. (~80 words)
+**Where the thread curve flattens, and why.**
 
 <!--answer:threading_plateau-->
-TODO
+It stopped helping after 2 threads. The Colab machine only has 2 real CPU cores, so extra
+threads just share the same cores and waste time coordinating. Going from 2 to 4 threads
+actually got slightly slower (2252ms to 2411ms).
 <!--/answer-->
 
-**What made the GPU faster.** The model, the data and the step count were identical; only the
-device changed. Say what about a transformer training step suits a GPU, and name one workload
-that would *not* see this speed-up. (~70 words)
+**What made the GPU faster.**
 
 <!--answer:gpu_why-->
-TODO
+Transformer training is mostly matrix multiplications. The T4 has thousands of cores that
+do these in parallel, giving 35.8x speedup over CPU. A workload with very small batches
+would not benefit because the data transfer cost to the GPU would cancel out the gain.
 <!--/answer-->
 
 ---
 
 ## 3. The question
 
-**Where does parallelism stop helping, and why?** Pull the three experiments together. Your
-answer should distinguish the *kinds* of limit you met — work that cannot be divided, hardware
-you do not have, coordination that costs more than it saves, data that has to move — and say
-which one bound each experiment. One concrete number from section 1 per claim. (~150 words)
+**Where does parallelism stop helping, and why?**
 
 <!--answer:parallelism_limit-->
-TODO
+Each experiment hit a different wall. Vectorization was limited by Python interpreter
+overhead — no amount of extra cores fixes that, only leaving Python does (474ms to 1ms).
+Threading was limited by hardware: 2 real cores means 2 threads is the ceiling, and going
+higher just adds coordination cost (2252ms at 2 threads vs 2411ms at 4). The GPU was fast
+(35.8x) because the matrix operations were large enough to keep it busy, but small batches
+would shrink that advantage since the CPU-to-GPU transfer cost stays fixed.
 <!--/answer-->
 
-**What you would measure next.** One experiment this phase did not run that would sharpen the
-answer, and what result would change your mind. (~50 words)
+**What you would measure next.**
 
 <!--answer:next_experiment-->
-TODO
+Sweep batch size on the GPU from 1 to 256 and measure speedup over CPU at each size. This
+would show exactly where the GPU stops being worth it, which would sharpen the conclusion
+about when parallelism helps.
 <!--/answer-->
