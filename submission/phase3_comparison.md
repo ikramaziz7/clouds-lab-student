@@ -15,7 +15,7 @@
 **Explain the timings.**
 
 <!--answer:timing_explanation-->
-The local run (18 ms) is the fastest because everything runs in one process with no network. The cloud MapReduce (23.7 s) does the same word count but sends tasks to 12 workers on Cloud Run and uses GCS to pass data between map and reduce — most of the time is waiting for network and HTTP calls, not computing. Spark (7.0 s) does more work (TF-IDF has two aggregations and a join) but runs on one machine, so it is faster than the cloud job. The local vs cloud comparison is fair (both do word count); Spark is a different job so the numbers cannot be compared directly.
+The local run (18 ms) is the fastest because everything runs in one process with no network. The cloud MapReduce (23.7 s) does the same word count but sends tasks to 12 workers on Cloud Run and uses GCS to pass data between map and reduce, so most of the time is waiting for network and HTTP calls, not computing. Spark (7.0 s) does more work (TF-IDF has two aggregations and a join) but runs on one machine, so it is faster than the cloud job. The local vs cloud comparison is fair (both do word count); Spark is a different job so the numbers cannot be compared directly.
 <!--/answer-->
 
 **What the counts tell you.**
@@ -31,7 +31,7 @@ The local run (18 ms) is the fastest because everything runs in one process with
 **Transformations vs actions.**
 
 <!--answer:transformations_vs_actions-->
-flatMap, map, reduceByKey, and join are all transformations — they just build a plan, nothing runs yet. collect is the only action and it triggers all the computation. When we called build_tfidf_rdd, Spark only recorded the steps. When we called collect, Spark actually ran all 4 stages and returned the results.
+flatMap, map, reduceByKey, and join are all transformations. They just build a plan and nothing runs yet. collect is the only action and it triggers all the computation. When we called build_tfidf_rdd, Spark only recorded the steps. When we called collect, Spark actually ran all 4 stages and returned the results.
 <!--/answer-->
 
 **Lineage and recovery.**
@@ -56,7 +56,7 @@ If a partition from the first reduceByKey (Stage 0) was lost, Spark would only r
 **The barrier.**
 
 <!--answer:barrier_location-->
-In workflow.yaml, all map tasks run inside a `parallel` block. Cloud Workflows waits for all branches in a `parallel` block to finish before moving to the next step. This is where the barrier is — the end of the `parallel` block.
+In workflow.yaml, all map tasks run inside a `parallel` block. Cloud Workflows waits for all branches to finish before moving to the next step. This is the barrier, at the end of the `parallel` block.
 <!--/answer-->
 
 **Idempotence.**
