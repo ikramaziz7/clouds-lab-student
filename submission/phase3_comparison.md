@@ -15,13 +15,13 @@
 **Explain the timings.**
 
 <!--answer:timing_explanation-->
-The local single-process run (18 ms) is fastest because all three MapReduce primitives run in one Python process with no network overhead. The cloud MapReduce (23.7 s) performs the same word count but fans out across 12 map workers and 4 reducers on Cloud Run, paying the cost of HTTP invocations, GCS shuffle files, and Cloud Workflows orchestration. The Spark TF-IDF (7.0 s) is not like-for-like — it computes a heavier job (two reduceByKeys and a join) on a single local machine. That Spark finishes TF-IDF in 7 s while the cloud job spends 23.7 s on simpler word count shows that most of the cloud job time is network and orchestration overhead, not computation.
+The local run (18 ms) is the fastest because everything runs in one process with no network. The cloud MapReduce (23.7 s) does the same word count but sends tasks to 12 workers on Cloud Run and uses GCS to pass data between map and reduce — most of the time is waiting for network and HTTP calls, not computing. Spark (7.0 s) does more work (TF-IDF has two aggregations and a join) but runs on one machine, so it is faster than the cloud job. The local vs cloud comparison is fair (both do word count); Spark is a different job so the numbers cannot be compared directly.
 <!--/answer-->
 
 **What the counts tell you.**
 
 <!--answer:counts_interpretation-->
-Four stages mean three shuffle boundaries. Stage 0 ended at the term_freq reduceByKey (spark_tfidf.py:32), Stage 1 at the doc_freq reduceByKey (line 45), and Stage 2 at the join (line 58); Stage 3 ran collect. With --chaos 0.3 and 16 total task slots, roughly 30% — about 5 tasks — were expected to fail and be retried, which matches what the workflow execution log showed.
+4 stages means 3 shuffles happened. The first shuffle was after term_freq (reduceByKey in spark_tfidf.py:32), the second after doc_freq (line 45), and the third during the join (line 58). With --chaos 0.3, about 30% of the 16 tasks were expected to fail randomly, so around 5 retries is normal and matches what we saw.
 <!--/answer-->
 
 ---
@@ -31,13 +31,13 @@ Four stages mean three shuffle boundaries. Stage 0 ended at the term_freq reduce
 **Transformations vs actions.**
 
 <!--answer:transformations_vs_actions-->
-In spark_tfidf.py, flatMap, map, reduceByKey (called twice), and join are all transformations — they build a lazy DAG without executing anything. The collect in the notebook is the only action. When build_tfidf_rdd ran, Spark simply recorded the computation graph and nothing executed. When collect was called, Spark triggered all four stages in sequence, actually computing term frequencies, document frequencies, the join, and the final TF-IDF scores.
+flatMap, map, reduceByKey, and join are all transformations — they just build a plan, nothing runs yet. collect is the only action and it triggers all the computation. When we called build_tfidf_rdd, Spark only recorded the steps. When we called collect, Spark actually ran all 4 stages and returned the results.
 <!--/answer-->
 
 **Lineage and recovery.**
 
 <!--answer:lineage_recovery-->
-If the worker holding an output partition of the first reduceByKey (Stage 0, line 32) died, Spark would recompute only that partition: re-run flatMap and reduceByKey from the original parallelized RDD. All other Stage 0 partitions already written to shuffle storage could be reused. Recovery restarts from Stage 0's shuffle boundary, leaving Stages 1–3 unaffected until their inputs are needed.
+If a partition from the first reduceByKey (Stage 0) was lost, Spark would only recompute that partition by going back to the original data and re-running flatMap and reduceByKey for it. The other partitions are already saved and do not need to be recomputed. Recovery starts from Stage 0.
 <!--/answer-->
 
 ---
@@ -56,17 +56,17 @@ If the worker holding an output partition of the first reduceByKey (Stage 0, lin
 **The barrier.**
 
 <!--answer:barrier_location-->
-The map tasks all run inside a `parallel` block in workflow.yaml. Cloud Workflows implicitly waits for every branch of a `parallel` block to complete before advancing to the next step, so the barrier is the closing of that `parallel` block.
+In workflow.yaml, all map tasks run inside a `parallel` block. Cloud Workflows waits for all branches in a `parallel` block to finish before moving to the next step. This is where the barrier is — the end of the `parallel` block.
 <!--/answer-->
 
 **Idempotence.**
 
 <!--answer:idempotence-->
-Each map task writes its shuffle pairs to a GCS file named after its task ID, overwriting any previous content. A retry therefore produces exactly the same file, so no duplicates arise. If `run_map` appended instead of overwriting, a retried task would add a second copy of its pairs to the shuffle file, causing each key's count to be doubled and corrupting the final word counts.
+Each map task writes its output to a GCS file named with its task ID, and it overwrites the file each time. So if a task is retried, it produces the same file again with no duplicates. If it appended instead of overwriting, a retry would write the data twice and the word counts would be wrong.
 <!--/answer-->
 
 **The chaos run.**
 
 <!--answer:chaos_observations-->
-With --chaos 0.3, roughly 30% of tasks raised a random exception. Cloud Workflows caught each failure and retried the affected step with exponential backoff (up to 5 attempts). The job still completed successfully with 2221 distinct words, identical to the local reference, confirming that the retry policy is sufficient to tolerate the injected fault rate.
+With --chaos 0.3, some tasks failed randomly. Cloud Workflows retried them automatically. The job still finished correctly with 2221 words, the same as the local result. This shows the retry logic works and the job can handle failures.
 <!--/answer-->
