@@ -1,4 +1,4 @@
-# Phase 3 — Comparison Writeup
+# Phase 3 :Comparison Writeup
 
 ## 1. Facts from your runs
 
